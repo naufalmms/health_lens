@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:health_lens/applications/theme/i_colors.dart';
+import 'package:health_lens/screens/assesment/view/assessment_history_screen.dart';
+import 'package:health_lens/screens/detection/view/depression_detection_page.dart';
 import 'package:persistent_bottom_nav_bar_v2/persistent_bottom_nav_bar_v2.dart';
 import 'package:health_lens/screens/main/home_screen.dart';
 import 'package:health_lens/screens/main/profile_screen.dart';
@@ -25,6 +27,51 @@ class MainScreen extends StatelessWidget {
                 ),
               ),
               title: "Home",
+              textStyle: const TextStyle(
+                fontSize: 12,
+              ),
+              activeForegroundColor: Palette.primaryColor,
+              inactiveForegroundColor: Colors.grey,
+            ),
+          ),
+          PersistentTabConfig(
+            screen: const DepressionDetectionPage(),
+            // screen: const DepressionDetectionScreen(),
+            item: ItemConfig(
+              icon: const Icon(Icons.warning),
+              inactiveIcon: const ColorFiltered(
+                colorFilter: ColorFilter.mode(
+                  Colors.grey,
+                  BlendMode.srcATop,
+                ),
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Icon(Icons.warning),
+                ),
+              ),
+              title: "Depresi",
+              textStyle: const TextStyle(
+                fontSize: 12,
+              ),
+              activeForegroundColor: Palette.primaryColor,
+              inactiveForegroundColor: Colors.grey,
+            ),
+          ),
+          PersistentTabConfig(
+            screen: const AssessmentHistoryPage(),
+            item: ItemConfig(
+              icon: const Icon(Icons.history),
+              inactiveIcon: const ColorFiltered(
+                colorFilter: ColorFilter.mode(
+                  Colors.grey,
+                  BlendMode.srcATop,
+                ),
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Icon(Icons.history),
+                ),
+              ),
+              title: "History",
               textStyle: const TextStyle(
                 fontSize: 12,
               ),

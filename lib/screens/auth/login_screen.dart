@@ -1,55 +1,3 @@
-// import 'package:flutter/material.dart';
-// import 'package:provider/provider.dart';
-// import '../../providers/auth_provider.dart';
-// import '../../widgets/custom_button.dart';
-// import '../../widgets/custom_text_field.dart';
-
-// class LoginScreen extends StatelessWidget {
-//   final _emailController = TextEditingController();
-//   final _passwordController = TextEditingController();
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       body: Padding(
-//         padding: EdgeInsets.all(16.0),
-//         child: Column(
-//           mainAxisAlignment: MainAxisAlignment.center,
-//           children: [
-//             CustomTextField(
-//               controller: _emailController,
-//               hintText: 'Email',
-//               keyboardType: TextInputType.emailAddress,
-//             ),
-//             SizedBox(height: 16),
-//             CustomTextField(
-//               controller: _passwordController,
-//               hintText: 'Password',
-//               isPassword: true,
-//             ),
-//             SizedBox(height: 24),
-//             CustomButton(
-//               text: 'Login',
-//               onPressed: () async {
-//                 try {
-//                   await context.read<AuthProvider>().signIn(
-//                         _emailController.text,
-//                         _passwordController.text,
-//                       );
-//                 } catch (e) {
-//                   ScaffoldMessenger.of(context).showSnackBar(
-//                     SnackBar(content: Text(e.toString())),
-//                   );
-//                 }
-//               },
-//             ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
-
 import 'package:flutter/material.dart';
 import 'package:health_lens/applications/assets/i_assets.dart';
 import 'package:health_lens/applications/components/button/i_button_component.dart';
@@ -58,8 +6,41 @@ import 'package:health_lens/applications/theme/i_colors.dart';
 import 'package:provider/provider.dart';
 import 'package:health_lens/providers/auth_provider.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  bool _isLoading = false;
+
+  Future<void> _handleGoogleSignIn(BuildContext context) async {
+    if (_isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final success = await context.read<AuthProvider>().signInWithGoogle();
+      if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.read<AuthProvider>().error),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -115,15 +96,22 @@ class LoginScreen extends StatelessWidget {
                         left: 16,
                         right: 16,
                       ),
-                      child: IButton(
-                        textSize: 20,
-                        width: MediaQuery.of(context).size.width,
-                        height: 50,
-                        name: "Sign in with Google",
-                        onPressed: () {
-                          context.read<AuthProvider>().signInWithGoogle();
-                        },
-                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : IButton(
+                              textSize: 20,
+                              width: MediaQuery.of(context).size.width,
+                              height: 50,
+                              name: "Sign in with Google",
+                              onPressed: () => _handleGoogleSignIn(context),
+                            ),
                     ),
                   ],
                 ),

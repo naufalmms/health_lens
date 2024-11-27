@@ -6,6 +6,14 @@ import 'package:permission_handler/permission_handler.dart';
 enum HealthServiceStatus { available, needsInstallation, unavailable, unknown }
 
 class HealthProvider with ChangeNotifier {
+  List<HealthDataPoint> _heartRateData = [];
+  List<HealthDataPoint> _sleepData = [];
+  List<HealthDataPoint> _physicalActivityData = [];
+
+  List<HealthDataPoint> get heartRateData => _heartRateData;
+  List<HealthDataPoint> get sleepData => _sleepData;
+  List<HealthDataPoint> get physicalActivityData => _physicalActivityData;
+
   final Health _health = Health();
   List<HealthDataPoint> _healthData = [];
   bool _isLoading = false;
@@ -62,28 +70,6 @@ class HealthProvider with ChangeNotifier {
       notifyListeners();
     }
   }
-
-  // Future<HealthServiceStatus> _checkAndHandleHealthConnect() async {
-  //   try {
-  //     final status = await _health.getHealthConnectSdkStatus();
-
-  //     switch (status) {
-  //       case HealthConnectSdkStatus.sdkUnavailable:
-  //         return HealthServiceStatus.unavailable;
-
-  //       case HealthConnectSdkStatus.sdkAvailable:
-  //         return HealthServiceStatus.available;
-
-  //       default:
-  //         return HealthServiceStatus.unknown;
-  //     }
-  //   } catch (e) {
-  //     if (kDebugMode) {
-  //       print('Error checking Health Connect status: $e');
-  //     }
-  //     return HealthServiceStatus.unknown;
-  //   }
-  // }
 
   Future<HealthServiceStatus> _checkAndHandleHealthConnect() async {
     try {
@@ -172,7 +158,25 @@ class HealthProvider with ChangeNotifier {
     }
   }
 
-  Future<void> fetchHealthData() async {
+  Future<void> revokeAccess() async {
+    try {
+      _isLoading = true;
+      notifyListeners();
+
+      await _health.revokePermissions();
+      _healthData = [];
+      _steps = 0;
+      _serviceStatus = HealthServiceStatus.unknown;
+    } catch (e) {
+      _error = 'Failed to revoke access: $e';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Fetch Heart Rate Data
+  Future<void> fetchHeartRateData() async {
     if (_serviceStatus != HealthServiceStatus.available) {
       _error = 'Health services are not available';
       notifyListeners();
@@ -185,25 +189,27 @@ class HealthProvider with ChangeNotifier {
       notifyListeners();
 
       final now = DateTime.now();
-      final yesterday = now.subtract(const Duration(hours: 24));
+      // final yesterday = now.subtract(const Duration(hours: 24));
+      final fourteenDaysAgo = now.subtract(const Duration(days: 14));
 
       final healthData = await _health.getHealthDataFromTypes(
-        types: types,
-        startTime: yesterday,
+        types: [HealthDataType.HEART_RATE],
+        startTime: fourteenDaysAgo,
         endTime: now,
       );
 
-      _healthData = _health.removeDuplicates(healthData);
-      _healthData.sort((a, b) => b.dateTo.compareTo(a.dateTo));
+      _heartRateData = _health.removeDuplicates(healthData);
+      _heartRateData.sort((a, b) => b.dateTo.compareTo(a.dateTo));
     } catch (e) {
-      _error = 'Failed to fetch health data: $e';
+      _error = 'Failed to fetch heart rate data: $e';
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  Future<void> fetchSteps() async {
+  // Fetch Sleep Data
+  Future<void> fetchSleepData() async {
     if (_serviceStatus != HealthServiceStatus.available) {
       _error = 'Health services are not available';
       notifyListeners();
@@ -212,32 +218,58 @@ class HealthProvider with ChangeNotifier {
 
     try {
       _isLoading = true;
+      _error = '';
       notifyListeners();
 
       final now = DateTime.now();
-      final midnight = DateTime(now.year, now.month, now.day);
+      // final yesterday = now.subtract(const Duration(hours: 24));
+      final fourteenDaysAgo = now.subtract(const Duration(days: 14));
 
-      final steps = await _health.getTotalStepsInInterval(midnight, now);
-      _steps = steps ?? 0;
+      final healthData = await _health.getHealthDataFromTypes(
+        types: [HealthDataType.SLEEP_SESSION],
+        startTime: fourteenDaysAgo,
+        endTime: now,
+      );
+
+      _sleepData = _health.removeDuplicates(healthData);
+      _sleepData.sort((a, b) => b.dateTo.compareTo(a.dateTo));
     } catch (e) {
-      _error = 'Failed to fetch steps: $e';
+      _error = 'Failed to fetch sleep data: $e';
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  Future<void> revokeAccess() async {
+  // Fetch Physical Activity Data
+  Future<void> fetchPhysicalActivityData() async {
+    if (_serviceStatus != HealthServiceStatus.available) {
+      _error = 'Health services are not available';
+      notifyListeners();
+      return;
+    }
+
     try {
       _isLoading = true;
+      _error = '';
       notifyListeners();
 
-      await _health.revokePermissions();
-      _healthData = [];
-      _steps = 0;
-      _serviceStatus = HealthServiceStatus.unknown;
+      final now = DateTime.now();
+      // final yesterday = now.subtract(const Duration(hours: 24));
+      final fourteenDaysAgo = now.subtract(const Duration(days: 14));
+
+      final healthData = await _health.getHealthDataFromTypes(
+        types: [
+          HealthDataType.STEPS,
+        ],
+        startTime: fourteenDaysAgo,
+        endTime: now,
+      );
+
+      _physicalActivityData = _health.removeDuplicates(healthData);
+      _physicalActivityData.sort((a, b) => b.dateTo.compareTo(a.dateTo));
     } catch (e) {
-      _error = 'Failed to revoke access: $e';
+      _error = 'Failed to fetch physical activity data: $e';
     } finally {
       _isLoading = false;
       notifyListeners();
