@@ -22,12 +22,12 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
   }
 
   String _getAssessmentResult(int score) {
-    if (score >= 20) {
-      return 'Severe depression symptoms detected. Please seek professional help immediately.';
+    if (score >= 30) {
+      return 'Severe depression symptoms detected. Immediate professional help is strongly recommended.';
+    } else if (score >= 19) {
+      return 'Moderate depression symptoms detected. Consult a mental health professional as soon as possible.';
     } else if (score >= 10) {
-      return 'Moderate depression symptoms detected. Consider consulting with a mental health professional.';
-    } else if (score >= 5) {
-      return 'Mild depression symptoms detected. Monitor your mood and consider talking to someone you trust.';
+      return 'Mild depression symptoms detected. Consider professional counseling.';
     } else {
       return 'No significant depression symptoms detected. Continue maintaining your mental well-being.';
     }
