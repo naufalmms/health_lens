@@ -127,13 +127,15 @@ class _DepressionDetectionPageState extends State<DepressionDetectionPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _buildRiskLevelCard(riskModel),
+                  provider.isDepressed
+                      ? _buildRiskLevelCard(riskModel)
+                      : const SizedBox(),
                   const SizedBox(height: 16),
                   _buildDataValidityCard(riskModel),
                   const SizedBox(height: 16),
                   _buildScoreBreakdown(riskModel),
                   const SizedBox(height: 16),
-                  _buildRecommendations(riskModel),
+                  _buildRecommendations(riskModel, provider),
                   if (provider.isDepressed) ...[
                     const SizedBox(height: 16),
                     _buildWarningCard(),
@@ -297,7 +299,8 @@ class _DepressionDetectionPageState extends State<DepressionDetectionPage> {
     );
   }
 
-  Widget _buildRecommendations(DepressionRiskModel riskModel) {
+  Widget _buildRecommendations(
+      DepressionRiskModel riskModel, DepressionDetectionProvider provider) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -310,7 +313,7 @@ class _DepressionDetectionPageState extends State<DepressionDetectionPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              _getRecommendationText(riskModel.riskLevel),
+              _getRecommendationText(riskModel.riskLevel, provider.isDepressed),
               style: const TextStyle(fontSize: 16),
             ),
           ],
@@ -336,14 +339,17 @@ class _DepressionDetectionPageState extends State<DepressionDetectionPage> {
     return Colors.green;
   }
 
-  String _getRecommendationText(String riskLevel) {
-    switch (riskLevel) {
-      case 'High Risk':
-        return 'We strongly recommend consulting a mental health professional. Your health indicators over the past two weeks suggest a significant risk of depression.';
-      case 'Moderate Risk':
-        return 'Consider speaking with a healthcare provider. Your health patterns indicate potential mental health concerns that could benefit from professional guidance.';
-      default:
-        return 'Your health indicators over the past two weeks suggest a low risk of depression. Continue maintaining your healthy lifestyle habits.';
+  String _getRecommendationText(String riskLevel, bool isDepressed) {
+    if (isDepressed) {
+      switch (riskLevel) {
+        case 'High Risk':
+          return 'We strongly recommend consulting a mental health professional. Your health indicators over the past two weeks suggest a significant risk of depression.';
+        case 'Moderate Risk':
+          return 'Consider speaking with a healthcare provider. Your health patterns indicate potential mental health concerns that could benefit from professional guidance.';
+        default:
+          return 'Your health indicators over the past two weeks suggest a low risk of depression. Continue maintaining your healthy lifestyle habits.';
+      }
     }
+    return 'Your health indicators over the past two weeks suggest a low risk of depression. Continue maintaining your healthy lifestyle habits.';
   }
 }
