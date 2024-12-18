@@ -37,6 +37,43 @@ class FirestoreService {
     }
   }
 
+  // Method to update an entire document in a collection
+  Future<bool> updateDailyDocument({
+    required String collectionName,
+    required String documentId,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      // await _firestore
+      //     .collection(collectionName)
+      //     .doc(documentId)
+      //     .set(data, SetOptions(merge: true));
+
+      final matchingDoc = await _firestore
+          .collection('detailed_depression_data')
+          .where('userId', isEqualTo: documentId)
+          .where('date', isEqualTo: data['date'])
+          .get();
+
+      if (matchingDoc.docs.isNotEmpty) {
+        // Update the first matching document
+        await matchingDoc.docs.first.reference
+            .update({...data, 'timestamp': FieldValue.serverTimestamp()});
+
+        if (kDebugMode) {
+          print('Updated depression data for ${data['date']}');
+        }
+      }
+
+      return true;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error updating document in $collectionName: $e');
+      }
+      return false;
+    }
+  }
+
   // Generic method to fetch data from a specific collection
   Future<Map<String, dynamic>?> fetchData({
     required String collectionName,
@@ -184,20 +221,6 @@ class FirestoreService {
     required bool needsAssessment,
   }) async {
     try {
-      // await _firestore.collection('depression_analysis').add({
-      //   'userId': userId,
-      //   'timestamp': FieldValue.serverTimestamp(),
-      //   'avgRestingHeartRate': avgRestingHeartRate,
-      //   'avgHeartRate': avgHeartRate,
-      //   'avgDailySteps': avgDailySteps,
-      //   'avgDailySleepDuration': avgDailySleepDuration,
-      //   'deepSleepPercentage': deepSleepPercentage,
-      //   'avgDailyActiveEnergyBurned': avgDailyActiveEnergyBurned,
-      //   'avgDailyWorkoutMinutes': avgDailyWorkoutMinutes,
-      //   'isDepressed': isDepressed,
-      //   'needsAssessment': needsAssessment,
-      // });
-
       final userData = {
         'userId': userId,
         'timestamp': FieldValue.serverTimestamp(),

@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -34,11 +35,12 @@ class DepressionDetectionProvider with ChangeNotifier {
       notifyListeners();
 
       final now = DateTime.now();
-      // final fourteenDaysAgo = now.subtract(const Duration(days: 14));
+      final userId = _auth.currentUser?.uid;
 
       int daysWithDepressionIndicators = 0;
       int daysWithValidData = 0;
       double totalRiskScore = 0;
+      List<Map<String, dynamic>> dailyDepressionData = [];
 
       // Analyze each day
       for (int i = 0; i < 14; i++) {
@@ -102,6 +104,18 @@ class DepressionDetectionProvider with ChangeNotifier {
           if (riskCount >= 2) {
             daysWithDepressionIndicators++;
             totalRiskScore += (riskCount / 3) * 100;
+
+            // Prepare daily depression data
+            dailyDepressionData.add({
+              'date': currentDate.toIso8601String(),
+              'sleepDuration': dailySleepDuration,
+              'dailySteps': dailySteps,
+              'heartRate': dailyHeartRate,
+              'sleepRisk': sleepRisk,
+              'stepsRisk': stepsRisk,
+              'heartRateRisk': heartRateRisk,
+              'riskScore': (riskCount / 3) * 100
+            });
           }
 
           if (kDebugMode) {
@@ -130,15 +144,15 @@ class DepressionDetectionProvider with ChangeNotifier {
           ? totalRiskScore / daysWithDepressionIndicators
           : 0;
 
-      // Only consider depression if we have enough valid days and enough days with indicators
-      if (daysWithValidData >= 8) {
-        _isDepressed = daysWithDepressionIndicators >= 8;
+      // Only consider depression if we have 14 valid days and sufficient depression indicators
+      if (daysWithValidData == 14) {
+        _isDepressed = daysWithDepressionIndicators >= 14;
       } else {
-        // If we don't have enough valid days, consider as not depressed
+        // If we don't have 14 valid days, consider as not depressed
         _isDepressed = false;
         if (kDebugMode) {
           print(
-              'Insufficient valid days ($daysWithValidData) for assessment. Minimum 8 days required.');
+              'Insufficient valid days ($daysWithValidData) for assessment. 14 days required.');
         }
       }
 
@@ -155,26 +169,40 @@ class DepressionDetectionProvider with ChangeNotifier {
         totalValidDays: daysWithValidData,
       );
 
-      if (_isDepressed) {
-        showDepressionNotification();
+      if (userId != null) {
+        // Save daily depression data to Firestore
+        await _saveDetailedDepressionData(userId, dailyDepressionData);
       }
 
-      // Store the latest day's data if available
-      if (sleepData.isNotEmpty &&
-          stepsData.isNotEmpty &&
-          heartRateData.isNotEmpty) {
-        final latestDayData = await _calculateLatestDayAverages(
-          sleepData,
-          stepsData,
-          heartRateData,
-        );
+      if (_isDepressed && userId != null) {
+        showDepressionNotification();
 
-        await _storeAnalysisResults(
-          latestDayData['avgHeartRate']!,
-          latestDayData['avgRestingHeartRate']!,
-          latestDayData['avgDailySteps']!,
-          latestDayData['avgSleepDuration']!,
-        );
+        // Check if analysis results have already been stored
+        final existingAnalysis = await firestoreService.queryCollection(
+            collectionName: 'depression_analysis',
+            whereConditions: {'userId': userId},
+            limit: 1);
+
+        // Store analysis results if not already stored
+        if (existingAnalysis.isEmpty) {
+          // Use the _storeAnalysisResults method for the latest day's data
+          if (sleepData.isNotEmpty &&
+              stepsData.isNotEmpty &&
+              heartRateData.isNotEmpty) {
+            final latestDayData = await _calculateAveragesFromValidData(
+              sleepData,
+              stepsData,
+              heartRateData,
+            );
+
+            await _storeAnalysisResults(
+              latestDayData['avgHeartRate']!,
+              latestDayData['avgRestingHeartRate']!,
+              latestDayData['avgDailySteps']!,
+              latestDayData['avgSleepDuration']!,
+            );
+          }
+        }
       }
 
       _isLoading = false;
@@ -186,48 +214,74 @@ class DepressionDetectionProvider with ChangeNotifier {
     }
   }
 
-  Future<Map<String, double>> _calculateLatestDayAverages(
+  Future<Map<String, double>> _calculateAveragesFromValidData(
     List<HealthDataPoint> sleepData,
     List<HealthDataPoint> stepsData,
     List<HealthDataPoint> heartRateData,
   ) async {
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final tomorrow = today.add(const Duration(days: 1));
 
-    final latestSleepData = sleepData
-        .where((data) =>
-            data.dateFrom.isAfter(today) && data.dateTo.isBefore(tomorrow))
-        .toList();
-    final latestStepsData = stepsData
-        .where((data) =>
-            data.dateFrom.isAfter(today) && data.dateTo.isBefore(tomorrow))
-        .toList();
-    final latestHeartRateData = heartRateData
-        .where((data) =>
-            data.dateFrom.isAfter(today) && data.dateTo.isBefore(tomorrow))
-        .toList();
+    // Variabel untuk menyimpan data yang valid
+    List<HealthDataPoint> validSleepData = [];
+    List<HealthDataPoint> validStepsData = [];
+    List<HealthDataPoint> validHeartRateData = [];
 
-    final avgSleepDuration = latestSleepData.isEmpty
+    // Analisis data selama 14 hari terakhir
+    for (int i = 0; i < 14; i++) {
+      final currentDate = now.subtract(Duration(days: i));
+      final nextDate = currentDate.add(const Duration(days: 1));
+
+      final dailySleepData = sleepData
+          .where((data) =>
+              data.dateFrom.isAfter(currentDate) &&
+              data.dateTo.isBefore(nextDate))
+          .toList();
+
+      final dailyStepsData = stepsData
+          .where((data) =>
+              data.dateFrom.isAfter(currentDate) &&
+              data.dateTo.isBefore(nextDate))
+          .toList();
+
+      final dailyHeartRateData = heartRateData
+          .where((data) =>
+              data.dateFrom.isAfter(currentDate) &&
+              data.dateTo.isBefore(nextDate))
+          .toList();
+
+      // Jika data pada hari ini lengkap, tambahkan ke data valid
+      if (dailySleepData.isNotEmpty &&
+          dailyStepsData.isNotEmpty &&
+          dailyHeartRateData.isNotEmpty) {
+        validSleepData.addAll(dailySleepData);
+        validStepsData.addAll(dailyStepsData);
+        validHeartRateData.addAll(dailyHeartRateData);
+      }
+    }
+
+    // Hitung rata-rata dari data yang valid
+    final avgSleepDuration = validSleepData.isEmpty
         ? 0.0
-        : latestSleepData
+        : validSleepData
                 .map((e) => e.dateTo.difference(e.dateFrom).inMinutes)
                 .reduce((a, b) => a + b) /
-            60.0;
+            (validSleepData.length * 60.0);
 
-    final avgDailySteps = latestStepsData.isEmpty
+    final avgDailySteps = validStepsData.isEmpty
         ? 0.0
-        : latestStepsData
-            .map((e) => (e.value as NumericHealthValue).numericValue.toDouble())
-            .reduce((a, b) => a + b);
-
-    final avgHeartRate = latestHeartRateData.isEmpty
-        ? 0.0
-        : latestHeartRateData
+        : validStepsData
                 .map((e) =>
                     (e.value as NumericHealthValue).numericValue.toDouble())
                 .reduce((a, b) => a + b) /
-            latestHeartRateData.length;
+            validStepsData.length;
+
+    final avgHeartRate = validHeartRateData.isEmpty
+        ? 0.0
+        : validHeartRateData
+                .map((e) =>
+                    (e.value as NumericHealthValue).numericValue.toDouble())
+                .reduce((a, b) => a + b) /
+            validHeartRateData.length;
 
     return {
       'avgSleepDuration': avgSleepDuration,
@@ -279,6 +333,72 @@ class DepressionDetectionProvider with ChangeNotifier {
       platformChannelSpecifics,
       payload: 'depression_assessment',
     );
+  }
+
+  Future<void> _saveDetailedDepressionData(
+      String userId, List<Map<String, dynamic>> dailyData) async {
+    final today = DateTime.now();
+
+    for (var dayData in dailyData) {
+      final dataDate = DateTime.parse(dayData['date']);
+
+      // Check if the data is for today or a future date
+      if (dataDate.isAtSameMomentAs(today) || dataDate.isAfter(today)) {
+        // Check if this day's data already exists
+        final existingData = await firestoreService.queryCollection(
+            collectionName: 'detailed_depression_data',
+            whereConditions: {'userId': userId, 'date': dayData['date']});
+
+        if (existingData.isEmpty) {
+          // If no existing data, save the new data
+          await firestoreService.saveData(
+              collectionName: 'detailed_depression_data',
+              data: {
+                ...dayData,
+                'userId': userId,
+                'timestamp': FieldValue.serverTimestamp()
+              });
+
+          if (kDebugMode) {
+            print('Saved depression data for ${dayData['date']}');
+          }
+        } else {
+          // If data exists and is for today, update the existing data
+          await firestoreService.updateDailyDocument(
+            collectionName: 'detailed_depression_data',
+            documentId: userId,
+            data: {
+              ...dayData,
+              'timestamp': FieldValue.serverTimestamp(),
+            },
+          );
+
+          if (kDebugMode) {
+            print('Updated depression data for ${dayData['date']}');
+          }
+        }
+      } else {
+        // Check if this day's data is already saved
+        final existingData = await firestoreService.queryCollection(
+            collectionName: 'detailed_depression_data',
+            whereConditions: {'userId': userId, 'date': dayData['date']});
+
+        // If no existing data, save the day's data
+        if (existingData.isEmpty) {
+          await firestoreService.saveData(
+              collectionName: 'detailed_depression_data',
+              data: {
+                ...dayData,
+                'userId': userId,
+                'timestamp': FieldValue.serverTimestamp()
+              });
+
+          if (kDebugMode) {
+            print('Saved depression data for ${dayData['date']}');
+          }
+        }
+      }
+    }
   }
 
   Future<void> _storeAnalysisResults(

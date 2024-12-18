@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:health_lens/screens/detection/model/depression_risk_model.dart';
-import 'package:health_lens/screens/detection/viewmodel/depression_detection_page.dart';
+import 'package:health_lens/screens/detection/viewmodel/depression_detection_viewmodel.dart';
 import 'package:health_lens/screens/main/assessment_screen.dart';
 import 'package:persistent_bottom_nav_bar_v2/persistent_bottom_nav_bar_v2.dart';
 import 'package:provider/provider.dart';
